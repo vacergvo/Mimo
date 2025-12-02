@@ -1,0 +1,424 @@
+body {
+      margin: 0;
+      height: 100vh; /* full screen height */
+      width: 100vw;
+      display: flex;
+      justify-content: center; /* horizontal centering */
+      align-items: center; /* vertical centering */
+      font-family: 'Inter', 'Helvetica', 'Arial', sans-serif;
+      background: linear-gradient(to bottom, #D7E8D7 0%, #B9DCC5 80%, #A8D5BA 100%);
+      background-color: #E8F3EA;
+    }
+
+    #auth-section {
+        position: fixed; /* stays centered even on scroll */
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        align-items: center;
+
+        width: 100%; 
+        max-width: 400px;
+        padding: 24px;
+        box-sizing: border-box;
+    }  
+
+    #auth-section .button {
+        margin-top: 20px;
+    }
+
+    #auth-section input,
+    #auth-section button {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      border: none;
+      border-radius: 12px;
+      justify-content: center;
+      align-items: center; 
+      font-size: 1rem;
+      box-sizing: border-box;
+      transition: border-color 0.3s ease;
+    }
+
+    #auth-section input {
+      background-color: #E8F3EA;
+    }
+
+    #auth-section button {
+      background-color: #A8D5BA;
+      color: white;
+      cursor: pointer;
+      border: none;
+      transition: background-color 0.3s, transform 0.2s;
+    }
+
+    #auth-section button:hover {
+      background-color: #86b196;  
+      transform: translateY(-2px);
+    }
+
+    #info-password {
+        font-size: 0.8rem;
+        color: #5c8d6e;
+        text-align: center;
+        margin: 0;
+    }
+
+    #toolbar {
+        position: fixed;        /* Fix to viewport */
+        bottom: 0;              /* At the bottom */
+        left: 0;                /* Full width */
+        width: 100%;
+        background-color: #A8D5BA; /* Dark background */
+        color: white;
+        display: flex;
+        border-radius: 12px 12px 0 0;
+        justify-content: center; /* Center the content horizontally */
+        padding: 10px 0;
+        box-shadow: 0 -2px 5px rgba(0,0,0,0.3); /* Subtle shadow above */
+        z-index: 1000;
+        }
+
+        /* Toolbar content wrapper (optional, keeps buttons grouped) */
+        .toolbar-content {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        }
+
+        /* Button container */
+        #toolbar-buttons {
+        display: flex;
+        gap: 15px; /* Space between buttons */
+        }
+
+        /* Toolbar buttons */
+        .toolbar-button {
+        background-color: #A8D5BA;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 16px;
+        transition: background-color 0.3s, transform 0.2s;
+        }
+
+        .toolbar-button:hover {
+        background-color: #555; /* Hover effect */
+        transform: translateY(-2px); /* Slight lift on hover */
+        }
+
+        .toolbar-button:active {
+        transform: translateY(0); /* Press effect */
+        }
+
+        #homescreen {
+            position: fixed; /* stays centered even on scroll */
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            align-items: center;
+
+            width: 100%;
+            max-width: 400px; /* limit size on large screens */
+            padding: 24px;
+            box-sizing: border-box;
+        }  
+
+        #top-homescreen button {
+            width: 100%; 
+            padding: 12px;
+            margin: 8px 0;
+            border: none;
+            border-radius: 12px;
+            justify-content: center;
+            align-items: center; 
+            font-size: 1rem;
+            box-sizing: border-box;
+            background-color: #A8D5BA;
+            color: white;
+            cursor: pointer;
+            margin-bottom: 8vh;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        #top-homescreen button:hover {
+            background-color: #86b196;  
+            transform: translateY(-2px);
+        }
+
+        #bottom-homescreen {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        #bottom-homescreen button {
+            width: calc((100% - 24px) / 3);
+            aspect-ratio: 1 / 1; 
+            padding: 12px;
+            margin: 8px 0;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+            border: #D7E8D7;
+            background-color: #E8F3EA;
+            color: #1F2937;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        #bottom-homescreen button:hover {
+            background-color: rgb(131, 210, 159);  
+            transform: translateY(-2px);
+        }
+
+        #map {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden; /* Important : cache les parties de l'image hors écran */
+            z-index: 0; /* Derrière la navbar */
+            background-color: #E8F3EA; /* Couleur de fond de sécurité */
+        }
+
+        #map img {
+            position: absolute;
+            top: 0;
+            left: 0;
+
+            height: 150vh; 
+            width: auto;
+            min-width: 100vw; 
+            
+            cursor: grab;
+            user-select: none;
+            touch-action: none;
+            transform: translate(0px, 0px);
+        }
+
+        #map img:active {
+            cursor: grabbing;
+        }
+
+        #starred {
+            position: fixed;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            align-items: center;
+
+            width: 100%;
+            max-width: 400px;
+            padding: 24px;
+            box-sizing: border-box;
+        }  
+
+        #top-star button {
+            width: 100%; 
+            padding: 12px;
+            margin: 8px 0;
+            border: none;
+            border-radius: 12px;
+            justify-content: center;
+            align-items: center; 
+            font-size: 1rem;
+            box-sizing: border-box;
+            background-color: #A8D5BA;
+            color: white;
+            cursor: pointer;
+            margin-bottom: 8vh;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        #top-star button:hover {
+            background-color: #86b196;  
+            transform: translateY(-2px);
+        }
+        
+        #bottom-star {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        #bottom-star button {
+            width: calc((100% - 24px) / 3);
+            aspect-ratio: 1 / 1; 
+            padding: 12px;
+            margin: 8px 0;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+            border: #D7E8D7;
+            background-color: #E8F3EA;
+            color: #1F2937;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        #bottom-star button:hover {
+            background-color: rgb(131, 210, 159);  
+            transform: translateY(-2px);
+        }
+
+        #settings {
+            position: fixed;
+            top: 30%; /* Matches homescreen/starred positioning */
+            left: 50%;
+            transform: translate(-50%, -50%);
+
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            align-items: center;
+
+            width: 100%;
+            max-width: 400px;
+            padding: 24px;
+            box-sizing: border-box;
+            background-color: transparent; /* Ensures it blends with global background */
+        }
+
+        /* Style the text input */
+        #settings .inputs {
+            width: 100%;
+        }
+
+        #settings input {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            background-color: #E8F3EA; /* Matches your theme input color */
+            color: #1F2937;
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        /* Style the Edit/Confirm buttons */
+        #settings button {
+            width: 100%; 
+            padding: 12px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            background-color: #A8D5BA; /* The main teal color */
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        #settings button:hover {
+            background-color: #86b196;  
+            transform: translateY(-2px);
+        }
+
+        /* --- SLIDER STYLING --- */
+
+        .slider-wrapper {
+            display: flex;
+            align-items: center; /* Vertically center slider and number */
+            flex-wrap: wrap;     /* Allow items to wrap so the title can sit on top */
+            gap: 10px;
+            width: 100%;
+            margin-top: 20px;
+            background-color: #E8F3EA; /* Optional: creates a card effect */
+            padding: 15px;
+            border-radius: 12px;
+            box-sizing: border-box;
+        }
+
+        /* The Slider Logic */
+        .slider-wrapper input[type="range"] {
+            flex-grow: 1; /* Takes up remaining width */
+            cursor: pointer;
+            accent-color: #A8D5BA; /* Colors the slider thumb to match your theme */
+        }
+
+        /* The Number Logic */
+        .slider-wrapper output {
+            font-weight: bold;
+            color: #3e6b4a;
+            min-width: 30px;
+            text-align: right;
+        }
+
+        /* The Subtitle Logic */
+        /* We use order: -1 to force the text to the top, even if it's last in HTML */
+        .slider-wrapper #subtitle {
+            width: 100%;
+            order: -1; 
+            margin-bottom: 8px;
+            text-align: left;
+            font-size: 0.9rem;
+            color: #5c8d6e;
+        }
+
+        .settings-buttons {
+            display: flex;       /* Puts the buttons in a row */
+            gap: 12px;           /* Adds space between them */
+            width: 100%;         /* Takes full width of the card */
+            margin-top: 10px;    /* Space above the buttons */
+        }
+
+        .settings-buttons button {
+            flex: 1;             /* Makes both buttons take equal width (50/50) */
+            margin: 0;           /* Removes default margins to keep them aligned */
+            /* The colors and borders are inherited from your existing #settings button styles */
+        }
+
+        #settings input:disabled {
+            background-color: #E8F3EA; /* Keep your theme background */
+            color: #555;               /* Solid text color */
+            cursor: default;           /* Normal arrow cursor */
+            opacity: 1;                /* Prevent default browser fading */
+            border: 1px solid transparent; /* No border */
+        }
+
+        /* When the input is EDITABLE (Enabled) */
+        #settings input:not(:disabled) {
+            background-color: #ffffff; /* White background to show it's editable */
+            cursor: text;              /* Text cursor */
+            border: 2px solid #A8D5BA; /* Green border to highlight focus */
+            color: #000;
+        }
+        #title {
+            font-size: 2rem;
+            color: #3e6b4a;
+            margin: 0;
+            font-family: 'Inter', 'Helvetica', 'Arial', sans-serif;
+            font-weight: bold;
+            margin-top: 10vh;
+            margin-bottom: 1vh;
+        }
+        #subtitle {
+            font-size: 1rem;
+            color: #5c8d6e;
+            margin: 0;
+            font-family: 'Inter', 'Helvetica', 'Arial', sans-serif;
+            margin-bottom: 2vh;
+        }
