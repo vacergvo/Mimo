@@ -1,0 +1,5 @@
+{
+  "name": "Mimo",
+  "description": "An interactive pedestrian map app focused on noise avoidance. Plan quiet routes, save favorite places, and customize your noise sensitivity profile.",
+  "requestFramePermissions": []
+}

@@ -10,14 +10,12 @@
 #include "soc/rtc_cntl_reg.h"
 
 // ================= VOS PARAMETRES =================
-#define WIFI_SSID "Freebox-25AF0D"       
-#define WIFI_PASSWORD "6n7xxq55b2q7hhzfq3kh7t"  
+#define WIFI_SSID "abyss"       
+#define WIFI_PASSWORD "dhbf9600" 
 
 #define API_KEY "AIzaSyD_G_PAGyTb7nsxjOBHm8clKobSCrdSn3M"
 #define DATABASE_URL "https://mimo-97d25-default-rtdb.europe-west1.firebasedatabase.app/" 
 
-static BLEUUID serviceUUID("180A");
-static BLEUUID charUUID("2A6F");
 const int SEUIL_ALERTE_SONORE = 500; 
 // ==================================================
 
@@ -25,147 +23,96 @@ FirebaseData fbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
 
-// --- LA LIGNE QUI MANQUAIT EST ICI : ---
 unsigned long sendDataPrevMillis = 0;
-// ---------------------------------------
+uint32_t lastVal1 = 0;
+uint32_t lastVal2 = 0;
+bool newData = false;
 
-// Variables "Volatiles" pour l'échange de données entre BLE et Loop
-volatile bool newDataReceived = false;
-volatile uint32_t soundValueToProcess = 0;
-
-BLEClient* pClient  = NULL;
-BLERemoteCharacteristic* pRemoteCharacteristic;
-bool doConnect = false;
-bool connected = false;
-BLEAdvertisedDevice* myDevice;
-
-// --- CALLBACK BLE (Doit être ULTRA RAPIDE) ---
-static void notifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
-    uint32_t val = 0;
-    if (length >= 4) {
-        memcpy(&val, pData, 4);
-    } else if (length > 0) {
-        val = pData[0]; 
-    }
-    
-    // On met la valeur dans la "boîte aux lettres"
-    soundValueToProcess = val;
-    newDataReceived = true; // On lève le drapeau
-}
-
+// Callback appelé à chaque fois qu'un paquet BLE est détecté
 class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
     void onResult(BLEAdvertisedDevice advertisedDevice) {
-        if (advertisedDevice.haveServiceUUID() && advertisedDevice.isAdvertisingService(serviceUUID)) {
-            Serial.print("Nano trouvée ! RSSI: ");
-            Serial.println(advertisedDevice.getRSSI());
-            BLEDevice::getScan()->stop(); 
-            myDevice = new BLEAdvertisedDevice(advertisedDevice);
-            doConnect = true; 
+        
+        // 1. On vérifie si c'est notre Nano (Par le nom ou l'ID)
+        if (advertisedDevice.getName() == "NanoSon") {
+            
+            // 2. On vérifie s'il y a des données "Manufacturer"
+            if (advertisedDevice.haveManufacturerData()) {
+                
+                // On récupère la donnée brute (string)
+                String data = advertisedDevice.getManufacturerData();
+                
+                // Les 2 premiers octets sont souvent l'ID (0xFFFF), on les saute parfois
+                // Mais avec la librairie ESP32 standard, data contient tout.
+                // Le format reçu est souvent : [ID_LOW] [ID_HIGH] [V1_LOW] [V1_HIGH] [V2_LOW] [V2_HIGH]
+                // Note : Cela dépend des versions de librairies, il faut parfois ajuster l'index.
+                
+                // Si la taille est suffisante (2 bytes ID + 4 bytes Data = 6 bytes)
+                if (data.length() >= 6) {
+                    // Décodage Capteur 1 (Octets 2 et 3)
+                    uint32_t v1 = (uint8_t)data[2] | ((uint8_t)data[3] << 8);
+                    
+                    // Décodage Capteur 2 (Octets 4 et 5)
+                    uint32_t v2 = (uint8_t)data[4] | ((uint8_t)data[5] << 8);
+
+                    // Mise à jour des variables globales
+                    lastVal1 = v1;
+                    lastVal2 = v2;
+                    newData = true;
+                    
+                    Serial.printf("Reçu Broadcast -> C1: %d | C2: %d \n", v1, v2);
+                }
+            }
         }
     }
 };
 
 void setup() {
-    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // Anti-Brownout
-    
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); 
     Serial.begin(115200); 
-    delay(1000);
-    Serial.println("\n--- DEMARRAGE GATEWAY ROBUSTE ---");
-
+    
+    // Wi-Fi
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    Serial.print("Connexion Wi-Fi");
-    while (WiFi.status() != WL_CONNECTED) {
-        Serial.print(".");
-        delay(500);
-    }
-    Serial.println("\nWi-Fi Connecté !");
+    while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
+    Serial.println("\nWi-Fi OK");
 
+    // Firebase
     config.api_key = API_KEY;
     config.database_url = DATABASE_URL;
-    
-    // Authentification Anonyme
-    if (Firebase.signUp(&config, &auth, "", "")){
-        Serial.println("Firebase Auth OK");
-    } else {
-        Serial.printf("Erreur Auth: %s\n", config.signer.signupError.message.c_str());
-    }
-    
+    Firebase.signUp(&config, &auth, "", "");
     Firebase.begin(&config, &auth);
     Firebase.reconnectWiFi(true);
-
-    // Augmente la mémoire tampon pour le SSL (évite erreur "ssl engine closed")
     fbdo.setBSSLBufferSize(4096, 1024);
 
+    // BLE Scan (Continu)
     BLEDevice::init("");
     BLEScan* pBLEScan = BLEDevice::getScan();
     pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
-    pBLEScan->setInterval(1349);
-    pBLEScan->setWindow(449);
-    pBLEScan->setActiveScan(true);
-    pBLEScan->start(10, false); 
-    Serial.println("Scan BLE lancé...");
-}
-
-bool connectToServer() {
-    Serial.print("Connexion BLE...");
-    pClient = BLEDevice::createClient();
-    pClient->connect(myDevice);
-    Serial.println("OK");
-
-    BLERemoteService* pRemoteService = pClient->getService(serviceUUID);
-    if (pRemoteService == nullptr) return false;
-
-    pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);
-    if (pRemoteCharacteristic == nullptr) return false;
-
-    if(pRemoteCharacteristic->canNotify()) {
-        pRemoteCharacteristic->registerForNotify(notifyCallback);
-    }
-    connected = true;
-    return true;
+    pBLEScan->setActiveScan(true); // Scan actif pour lire les données plus vite
+    pBLEScan->setInterval(100);
+    pBLEScan->setWindow(99);  // Scan presque 100% du temps
 }
 
 void loop() {
-    // 1. Gestion de la connexion BLE initiale
-    if (doConnect == true) {
-        if (connectToServer()) {
-            Serial.println("Prêt à recevoir !");
-        } else {
-            Serial.println("Échec connexion BLE.");
-        }
-        doConnect = false;
-    }
+    // Le scan doit tourner en permanence ou être relancé
+    // La méthode start(0) scanne à l'infini
+    BLEDevice::getScan()->start(1, false); // Scan 1 seconde, puis rend la main à la loop
+    BLEDevice::getScan()->clearResults();   // Nettoie la mémoire pour ne pas saturer
 
-    // 2. MISE A JOUR DE LA VALEUR LOCALE (Ultra rapide)
-    if (newDataReceived) {
-        newDataReceived = false; 
-    }
+    // Envoi Firebase (Toutes les 2 secondes max)
+    if (newData && Firebase.ready() && (millis() - sendDataPrevMillis > 2000)) {
+        sendDataPrevMillis = millis();
+        newData = false;
 
-    // 3. ENVOI A FIREBASE (Lent - Seulement toutes les 2 secondes)
-    if (Firebase.ready() && (millis() - sendDataPrevMillis > 2000)) {
-        sendDataPrevMillis = millis(); // On remet le chrono à zéro
-
-        uint32_t currentValue = soundValueToProcess;
+        Serial.print("Firebase Update... ");
+        Firebase.RTDB.setInt(&fbdo, "/maison/salon/capteur_1", lastVal1);
+        Firebase.RTDB.setInt(&fbdo, "/maison/salon/capteur_2", lastVal2);
         
-        Serial.print("Envoi Firebase (Valeur: ");
-        Serial.print(currentValue);
-        Serial.print(")... ");
-
-        if (Firebase.RTDB.setInt(&fbdo, "/maison/salon/niveau_sonore", currentValue)) {
-            Serial.println("OK !");
-            
-            if (currentValue > SEUIL_ALERTE_SONORE) {
-                 Firebase.RTDB.setBool(&fbdo, "/maison/salon/alerte", true);
-            } else { 
-                 Firebase.RTDB.setBool(&fbdo, "/maison/salon/alerte", false);
-            }
-
+        if (lastVal1 > SEUIL_ALERTE_SONORE || lastVal2 > SEUIL_ALERTE_SONORE) {
+             Firebase.RTDB.setBool(&fbdo, "/maison/salon/alerte", true);
         } else {
-            Serial.print("ERREUR: ");
-            Serial.println(fbdo.errorReason());
+             Firebase.RTDB.setBool(&fbdo, "/maison/salon/alerte", false);
         }
+        Serial.println("Done.");
     }
-    
-    delay(10);
 }
