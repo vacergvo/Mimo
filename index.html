@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Mimo</title>
+    <!-- Tailwind via CDN for simplicity, though npm install is better for production -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Leaflet CSS -->
@@ -84,12 +85,13 @@
   <script type="importmap">
 {
   "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "leaflet": "https://aistudiocdn.com/leaflet@^1.9.4",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
     "react/": "https://aistudiocdn.com/react@^19.2.1/",
     "react": "https://aistudiocdn.com/react@^19.2.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
-    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
-    "leaflet": "https://aistudiocdn.com/leaflet@^1.9.4",
-    "leaflet/": "https://aistudiocdn.com/leaflet@^1.9.4/"
+    "vite": "https://aistudiocdn.com/vite@^7.2.6"
   }
 }
 </script>
@@ -97,6 +99,6 @@
 </head>
   <body>
     <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
-</body>
+    <script type="module" src="/index.tsx"></script>
+  </body>
 </html>
