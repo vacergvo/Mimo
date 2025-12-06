@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -31,21 +32,15 @@ const App: React.FC = () => {
     if (!userProfile) return;
 
     const interval = setInterval(() => {
-      // Simulate random noise fluctuation between 30dB (library) and 90dB (heavy traffic)
-      // Base trend on time of day? For now, just random walk.
-      const change = Math.floor(Math.random() * 10) - 4; // -4 to +5
+      const change = Math.floor(Math.random() * 10) - 4; 
       let newLevel = currentNoiseLevel + change;
       if (newLevel < 30) newLevel = 30;
       if (newLevel > 100) newLevel = 100;
       
       setCurrentNoiseLevel(newLevel);
 
-      // Check Notification Threshold
-      // User sensitivity is stored as positive integer now (30-100), e.g., 70
-      // If simulated noise > sensitivity, trigger alert.
       if (newLevel > userProfile.noiseSensitivity) {
         const now = Date.now();
-        // Cooldown of 60 seconds
         if (now - lastNotifiedTime > 60000) {
           triggerNoiseNotification(newLevel);
           setLastNotifiedTime(now);
@@ -58,14 +53,10 @@ const App: React.FC = () => {
   }, [userProfile, currentNoiseLevel, lastNotifiedTime]);
 
   const triggerNoiseNotification = (level: number) => {
-    // 1. In-app toast (simplified via console/UI update for now, or alert)
     console.log(`⚠️ High Noise Alert: ${level}dB detected!`);
-
-    // 2. Browser Notification
     if (Notification.permission === 'granted') {
       new Notification('Mimo Noise Alert ⚠️', {
         body: `Current noise level (${level}dB) exceeds your threshold. Re-routing suggested.`,
-        icon: '/icon.png' // Placeholder
       });
     }
   };
@@ -79,6 +70,7 @@ const App: React.FC = () => {
           await fetchOrCreateUserProfile(user);
         } else {
           setUserProfile(null);
+          setTheme('light'); // Reset theme on logout
         }
       } catch (error) {
         console.error("Auth state change error:", error);
@@ -90,12 +82,34 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // Helper: Save to LocalStorage (Backup)
+  const saveToLocal = (uid: string, data: UserProfile) => {
+    try {
+        localStorage.setItem(`mimo_user_${uid}`, JSON.stringify(data));
+    } catch (e) {
+        console.error("Local storage save failed", e);
+    }
+  };
+
+  // Helper: Load from LocalStorage
+  const loadFromLocal = (uid: string): UserProfile | null => {
+    try {
+        const data = localStorage.getItem(`mimo_user_${uid}`);
+        return data ? JSON.parse(data) : null;
+    } catch (e) {
+        return null;
+    }
+  };
+
   const fetchOrCreateUserProfile = async (user: User) => {
+    // 1. Define default structure
     const defaultProfile: UserProfile = {
       uid: user.uid,
       email: user.email,
       displayName: user.displayName || 'Traveler',
-      noiseSensitivity: 70, // Default to 70dB
+      noiseSensitivity: 70,
+      age: '', 
+      theme: 'light',
       favorites: [
          { id: '1', name: 'Home', type: 'home', address: 'Set your home address' },
          { id: '2', name: 'Work', type: 'work', address: 'Set your work address' }
@@ -103,36 +117,80 @@ const App: React.FC = () => {
     };
 
     try {
+      // 2. Try to fetch from Firestore
       const userRef = doc(db, 'users', user.uid);
       const docSnap = await getDoc(userRef);
 
       if (docSnap.exists()) {
-        setUserProfile(docSnap.data() as UserProfile);
+        const data = docSnap.data();
+        const merged = {
+          ...defaultProfile,
+          ...data,
+          favorites: data.favorites || defaultProfile.favorites
+        } as UserProfile;
+        
+        setUserProfile(merged);
+        if (merged.theme) setTheme(merged.theme);
+        saveToLocal(user.uid, merged); // Sync to local backup
       } else {
-        // Create new profile
+        // 3. If new user, save default profile to Firestore
         await setDoc(userRef, defaultProfile);
         setUserProfile(defaultProfile);
+        saveToLocal(user.uid, defaultProfile);
       }
     } catch (error: any) {
-      console.warn("Firestore access failed, using local fallback:", error.message);
-      setUserProfile(defaultProfile);
+      console.warn("⚠️ FIRESTORE PERMISSION ERROR: Using Local Storage Fallback.");
+      
+      // 4. Fallback: Try to load from LocalStorage
+      const localData = loadFromLocal(user.uid);
+      if (localData) {
+        console.log("Loaded profile from Local Storage");
+        setUserProfile(localData);
+        if (localData.theme) setTheme(localData.theme);
+      } else {
+        console.log("No local data found, using defaults");
+        setUserProfile(defaultProfile);
+        saveToLocal(user.uid, defaultProfile);
+      }
     }
   };
 
-  const updateProfileData = async (name: string, sensitivity: number) => {
+  const handleToggleTheme = async () => {
+    if (!currentUser || !userProfile) return;
+
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+
+    const updatedProfile = { ...userProfile, theme: newTheme };
+    setUserProfile(updatedProfile);
+    saveToLocal(currentUser.uid, updatedProfile);
+
+    try {
+      const userRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userRef, { theme: newTheme });
+    } catch (error) {
+       // Silent fail for theme persistence if permission denied
+    }
+  };
+
+  const updateProfileData = async (name: string, sensitivity: number, age: string) => {
     if (!currentUser || !userProfile) return;
     
-    const updatedProfile = { ...userProfile, displayName: name, noiseSensitivity: sensitivity };
+    // 1. Optimistic UI Update & Local Save
+    const updatedProfile = { ...userProfile, displayName: name, noiseSensitivity: sensitivity, age };
     setUserProfile(updatedProfile);
+    saveToLocal(currentUser.uid, updatedProfile); // ALWAYS save to local
     
+    // 2. Try Firestore Update
     try {
       const userRef = doc(db, 'users', currentUser.uid);
       await updateDoc(userRef, {
         displayName: name,
-        noiseSensitivity: sensitivity
+        noiseSensitivity: sensitivity,
+        age: age
       });
     } catch (error) {
-      console.warn("Failed to sync profile update to DB:", error);
+      console.error("Firestore sync failed (Permissions). Data saved locally.");
     }
   };
 
@@ -141,15 +199,16 @@ const App: React.FC = () => {
 
     const newFavorite = { ...place, id: Date.now().toString() };
     const updatedFavorites = [...userProfile.favorites, newFavorite];
-    
     const updatedProfile = { ...userProfile, favorites: updatedFavorites };
+    
     setUserProfile(updatedProfile);
+    saveToLocal(currentUser.uid, updatedProfile);
 
     try {
       const userRef = doc(db, 'users', currentUser.uid);
       await updateDoc(userRef, { favorites: updatedFavorites });
     } catch (error) {
-      console.warn("Failed to sync favorites to DB:", error);
+      console.warn("Firestore sync failed (Permissions). Data saved locally.");
     }
   };
 
@@ -162,12 +221,13 @@ const App: React.FC = () => {
 
     const updatedProfile = { ...userProfile, favorites: updatedFavorites };
     setUserProfile(updatedProfile);
+    saveToLocal(currentUser.uid, updatedProfile);
 
     try {
       const userRef = doc(db, 'users', currentUser.uid);
       await updateDoc(userRef, { favorites: updatedFavorites });
     } catch (error) {
-      console.warn("Failed to sync favorite update to DB:", error);
+      console.warn("Firestore sync failed (Permissions). Data saved locally.");
     }
   };
 
@@ -205,7 +265,7 @@ const App: React.FC = () => {
             user={userProfile} 
             onUpdateProfile={updateProfileData} 
             isDarkMode={theme === 'dark'}
-            onToggleTheme={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+            onToggleTheme={handleToggleTheme}
           />
         );
       default:

@@ -7,7 +7,7 @@ import { signOut } from 'firebase/auth';
 
 interface SettingsPageProps {
   user: UserProfile;
-  onUpdateProfile: (name: string, sensitivity: number) => Promise<void>;
+  onUpdateProfile: (name: string, sensitivity: number, age: string) => Promise<void>;
   isDarkMode: boolean;
   onToggleTheme: () => void;
 }
@@ -15,6 +15,7 @@ interface SettingsPageProps {
 const SettingsPage: React.FC<SettingsPageProps> = ({ user, onUpdateProfile, isDarkMode, onToggleTheme }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user.displayName);
+  const [age, setAge] = useState(user.age || '');
   const [sensitivity, setSensitivity] = useState(user.noiseSensitivity);
   const [loading, setLoading] = useState(false);
   const [requestPermission, setRequestPermission] = useState(false);
@@ -22,6 +23,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ user, onUpdateProfile, isDa
   // Sync state if user prop updates externally
   useEffect(() => {
     setName(user.displayName);
+    setAge(user.age || '');
     setSensitivity(user.noiseSensitivity);
   }, [user]);
 
@@ -37,7 +39,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ user, onUpdateProfile, isDa
 
   const handleSave = async () => {
     setLoading(true);
-    await onUpdateProfile(name, sensitivity);
+    await onUpdateProfile(name, sensitivity, age);
     setLoading(false);
     setIsEditing(false);
   };
@@ -56,29 +58,54 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ user, onUpdateProfile, isDa
 
         {/* Profile Section */}
         <section className="bg-[var(--bg-card)] p-6 rounded-3xl shadow-sm border border-[var(--primary)]/20 space-y-4">
-            <h2 className="text-lg font-semibold text-[var(--text-main)]">Profile</h2>
-            
-            <div className="relative">
-                <label className="text-xs font-bold text-[var(--text-sub)] uppercase tracking-wider">Display Name</label>
-                {isEditing ? (
-                <Input 
-                    value={name} 
-                    onChange={(e) => setName(e.target.value)} 
-                    className="mt-1"
-                    autoFocus
-                />
-                ) : (
-                <p className="text-lg font-medium text-[var(--text-main)] mt-1 py-3 border-b border-transparent">{name}</p>
+            <div className="flex justify-between items-center">
+                <h2 className="text-lg font-semibold text-[var(--text-main)]">Profile</h2>
+                {!isEditing && (
+                    <button 
+                        onClick={() => setIsEditing(true)} 
+                        className="text-sm text-[var(--primary)] hover:underline font-medium"
+                    >
+                        Edit
+                    </button>
                 )}
             </div>
+            
+            <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2 relative">
+                    <label className="text-xs font-bold text-[var(--text-sub)] uppercase tracking-wider block mb-1">Display Name</label>
+                    {isEditing ? (
+                    <Input 
+                        value={name} 
+                        onChange={(e) => setName(e.target.value)} 
+                        placeholder="Your name"
+                    />
+                    ) : (
+                    <p className="text-lg font-medium text-[var(--text-main)] py-2 border-b border-[var(--primary)]/10">{name}</p>
+                    )}
+                </div>
 
-            {isEditing ? (
-            <div className="flex gap-3">
-                <Button onClick={handleSave} isLoading={loading} className="py-2 text-sm">Confirm</Button>
+                <div className="col-span-1 relative">
+                    <label className="text-xs font-bold text-[var(--text-sub)] uppercase tracking-wider block mb-1">Age</label>
+                    {isEditing ? (
+                    <Input 
+                        value={age} 
+                        onChange={(e) => setAge(e.target.value)} 
+                        placeholder="Age"
+                        type="number"
+                        min="0"
+                        max="120"
+                    />
+                    ) : (
+                    <p className="text-lg font-medium text-[var(--text-main)] py-2 border-b border-[var(--primary)]/10">{age || '--'}</p>
+                    )}
+                </div>
+            </div>
+
+            {isEditing && (
+            <div className="flex gap-3 pt-2">
+                <Button onClick={handleSave} isLoading={loading} className="py-2 text-sm">Save Changes</Button>
                 <Button variant="secondary" onClick={() => setIsEditing(false)} className="py-2 text-sm">Cancel</Button>
             </div>
-            ) : (
-            <Button variant="secondary" onClick={() => setIsEditing(true)} className="py-2 text-sm">Edit Profile</Button>
             )}
         </section>
 
@@ -104,7 +131,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ user, onUpdateProfile, isDa
                 max="100" 
                 value={sensitivity} 
                 onChange={(e) => setSensitivity(Number(e.target.value))}
-                onMouseUp={handleSave} // Auto save on release
+                onMouseUp={handleSave} 
                 onTouchEnd={handleSave}
                 className="w-full h-2 bg-[var(--bg-main)] rounded-lg appearance-none cursor-pointer accent-[var(--primary)]"
                 />
@@ -118,7 +145,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ user, onUpdateProfile, isDa
             </p>
         </section>
 
-        {/* Theme Toggle - Moved Below Sensitivity */}
+        {/* Theme Toggle */}
         <section className="bg-[var(--bg-card)] p-6 rounded-3xl shadow-sm border border-[var(--primary)]/20 flex justify-between items-center">
             <div>
             <h2 className="text-lg font-semibold text-[var(--text-main)]">Dark Mode</h2>
