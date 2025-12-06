@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Mimo</title>
+    <!-- Tailwind via CDN for simplicity, though npm install is better for production -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+      :root {
+        /* Original Pastel Palette (Light Mode) */
+        --bg-main: #E8F3EA;
+        --bg-card: #FFFFFF;
+        --bg-input: #E8F3EA;
+        
+        --primary: #A8D5BA;
+        --primary-hover: #86b196;
+        
+        --text-main: #3e6b4a;
+        --text-sub: #5c8d6e;
+        --text-inverse: #FFFFFF;
+
+        --gradient-start: #D7E8D7;
+        --gradient-mid: #B9DCC5;
+        --gradient-end: #A8D5BA;
+
+        --nav-bg: rgba(168, 213, 186, 0.95); /* #A8D5BA with opacity */
+        --nav-active: #FFFFFF;
+        --nav-inactive: #E8F3EA;
+      }
+
+      [data-theme='dark'] {
+        /* Dark Blue / Night Mode */
+        --bg-main: #0f172a; /* Slate 900 */
+        --bg-card: #1e293b; /* Slate 800 */
+        --bg-input: #334155; /* Slate 700 */
+
+        --primary: #475569; /* Slate 600 */
+        --primary-hover: #64748b; /* Slate 500 */
+
+        --text-main: #e2e8f0; /* Slate 200 */
+        --text-sub: #94a3b8; /* Slate 400 */
+        --text-inverse: #f8fafc;
+
+        --gradient-start: #020617;
+        --gradient-mid: #0f172a;
+        --gradient-end: #1e293b;
+
+        --nav-bg: rgba(30, 41, 59, 0.95);
+        --nav-active: #60a5fa; /* Blue 400 */
+        --nav-inactive: #64748b;
+      }
+
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: var(--bg-main);
+        color: var(--text-main);
+        transition: background-color 0.3s ease, color 0.3s ease;
+        overscroll-behavior: none;
+      }
+
+      /* Utilities for dynamic colors */
+      .bg-theme-main { background-color: var(--bg-main); }
+      .bg-theme-card { background-color: var(--bg-card); }
+      .bg-theme-input { background-color: var(--bg-input); }
+      .bg-theme-primary { background-color: var(--primary); }
+      .text-theme-main { color: var(--text-main); }
+      .text-theme-sub { color: var(--text-sub); }
+      .border-theme-primary { border-color: var(--primary); }
+
+      /* Gradient Animation helper */
+      .animate-gradient {
+        background: linear-gradient(to bottom, var(--gradient-start) 0%, var(--gradient-mid) 80%, var(--gradient-end) 100%);
+      }
+
+      /* Hide scrollbar for clean mobile look */
+      ::-webkit-scrollbar {
+        width: 0px;
+        background: transparent;
+      }
+    </style>
+
+<link rel="stylesheet" href="/index.css">
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
+    "leaflet": "https://aistudiocdn.com/leaflet@^1.9.4",
+    "vite": "https://aistudiocdn.com/vite@^7.2.6",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
+  }
+}
+</script>
+  <script type="module" crossorigin src="./assets/index-DJ0ylu4-.js"></script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
