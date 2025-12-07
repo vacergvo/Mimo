@@ -50,14 +50,24 @@ const AuthPage: React.FC = () => {
       // Auth state listener in App.tsx will handle the rest
     } catch (err: any) {
       console.error("Google Sign In Error:", err);
+      
       if (err.code === 'auth/unauthorized-domain') {
-        // dynamically show the current domain so the user can copy it
         const currentDomain = window.location.hostname;
-        setError(`Domain not authorized: ${currentDomain}. Please add this to Firebase Console > Auth > Settings.`);
+        const errorMessage = `⚠️ Domain Error:
+        
+        The domain "${currentDomain}" is not authorized.
+        
+        1. Go to Firebase Console > Authentication > Settings > Authorized Domains.
+        2. Add this domain: ${currentDomain}`;
+        
+        setError(errorMessage);
+        console.warn("ADD THIS DOMAIN TO FIREBASE:", currentDomain);
       } else if (err.code === 'auth/popup-closed-by-user') {
         setError("Sign in cancelled.");
+      } else if (err.code === 'auth/popup-blocked') {
+        setError("Popup blocked. Please allow popups for this site.");
       } else {
-        setError("Failed to sign in with Google.");
+        setError("Failed to sign in with Google. Check console for details.");
       }
       setLoading(false);
     }
@@ -103,7 +113,7 @@ const AuthPage: React.FC = () => {
           </p>
 
           {error && (
-            <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 break-words">
+            <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 break-words whitespace-pre-wrap font-mono">
               {error}
             </div>
           )}
