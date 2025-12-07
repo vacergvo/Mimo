@@ -16,6 +16,17 @@ export interface FavoritePlace {
   address: string;
 }
 
+export interface RouteOption {
+  id: string;
+  name: string;
+  type: 'quiet' | 'fast';
+  distance: string;
+  duration: string;
+  avgNoise: number;
+  coordinates: [number, number][]; // Array of LatLng
+  color: string;
+}
+
 export enum NavTab {
   HOME = 'home',
   MAP = 'map',

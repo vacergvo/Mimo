@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import Button from '../components/Button';
@@ -47,6 +48,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ user, onUpdateProfile, isDa
   const handleLogout = () => {
     signOut(auth);
   };
+
+  // Calculate percentage for slider gradient (30dB to 100dB range)
+  const sliderPercentage = ((sensitivity - 30) / (100 - 30)) * 100;
 
   return (
     <div className="p-6 pt-12 pb-24 space-y-8 animate-fade-in transition-colors duration-300 h-full overflow-y-auto w-full">
@@ -125,16 +129,23 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ user, onUpdateProfile, isDa
                 <span className="text-4xl font-bold text-[var(--text-main)] mb-2">{sensitivity} dB</span>
                 <span className="text-xs font-bold text-[var(--text-sub)] uppercase tracking-widest mb-6">Threshold</span>
                 
-                <input 
-                type="range" 
-                min="30" 
-                max="100" 
-                value={sensitivity} 
-                onChange={(e) => setSensitivity(Number(e.target.value))}
-                onMouseUp={handleSave} 
-                onTouchEnd={handleSave}
-                className="w-full h-2 bg-[var(--bg-main)] rounded-lg appearance-none cursor-pointer accent-[var(--primary)]"
-                />
+                <div className="w-full relative h-6 flex items-center">
+                    <input 
+                        type="range" 
+                        min="30" 
+                        max="100" 
+                        value={sensitivity} 
+                        onChange={(e) => setSensitivity(Number(e.target.value))}
+                        onMouseUp={handleSave} 
+                        onTouchEnd={handleSave}
+                        className="w-full h-3 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
+                        style={{
+                            background: `linear-gradient(to right, var(--primary) ${sliderPercentage}%, var(--bg-main) ${sliderPercentage}%)`,
+                            border: '1px solid rgba(0,0,0,0.05)'
+                        }}
+                    />
+                </div>
+                
                 <div className="flex justify-between w-full mt-2 text-xs text-[var(--text-sub)] font-medium">
                     <span>Quiet (30dB)</span>
                     <span>Loud (100dB)</span>

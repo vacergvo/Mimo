@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Input from '../components/Input';
 import L from 'leaflet';
+import { RouteOption } from '../types';
 
 interface MapPageProps {
   noiseLevel: number;
@@ -19,20 +20,50 @@ const MapPage: React.FC<MapPageProps> = ({ noiseLevel, userSensitivity }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [routeActive, setRouteActive] = useState(false);
-  const [destinationInfo, setDestinationInfo] = useState<{name: string, dist: string} | null>(null);
+  
+  // Routing State
+  const [routes, setRoutes] = useState<RouteOption[]>([]);
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  const [destinationName, setDestinationName] = useState<string>('');
   const [locationError, setLocationError] = useState<string | null>(null);
+
+  // Mic Permission State
+  const [micStatus, setMicStatus] = useState<'pending' | 'granted' | 'denied'>('pending');
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const destMarkerRef = useRef<L.Marker | null>(null);
-  const routeLineRef = useRef<L.Polyline | null>(null);
+  const routeLayersRef = useRef<L.Polyline[]>([]);
   
   // Track user position in state for calculations
   const [userPos, setUserPos] = useState<[number, number] | null>(null);
 
-  // 1. Initialize Map & Geolocation
+  // 1. Request Microphone Permission
+  useEffect(() => {
+    const requestMic = async () => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.warn("Media Devices API not supported.");
+            setMicStatus('denied');
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            setMicStatus('granted');
+            // We only need permission to "start" the feature (visualize the simulation).
+            // Stop tracks to release the mic and save battery.
+            stream.getTracks().forEach(track => track.stop());
+        } catch (err) {
+            console.warn("Microphone permission denied:", err);
+            setMicStatus('denied');
+        }
+    };
+
+    requestMic();
+  }, []);
+
+  // 2. Initialize Map & Geolocation
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
@@ -55,7 +86,7 @@ const MapPage: React.FC<MapPageProps> = ({ noiseLevel, userSensitivity }) => {
     // Create User Marker (Hidden initially until location found)
     userMarkerRef.current = L.marker([0, 0], { icon: userIcon }).bindPopup("You are here");
 
-    // Add Noisy Zones (Static for demo)
+    // Add Noisy Zones (Static visualization of "Historical Data")
     const noisyZones = [
         { lat: 40.715, lng: -74.008, rad: 300 },
         { lat: 40.711, lng: -74.002, rad: 200 }
@@ -65,7 +96,7 @@ const MapPage: React.FC<MapPageProps> = ({ noiseLevel, userSensitivity }) => {
         L.circle([zone.lat, zone.lng], {
             color: 'red',
             fillColor: '#f03',
-            fillOpacity: 0.2,
+            fillOpacity: 0.1,
             radius: zone.rad,
             stroke: false
         }).addTo(map);
@@ -90,9 +121,7 @@ const MapPage: React.FC<MapPageProps> = ({ noiseLevel, userSensitivity }) => {
           }
         },
         (error) => {
-          // Fix: Access error properties explicitly instead of printing the object
           console.error("Error getting location:", error.message);
-          
           let msg = "Location unavailable.";
           switch(error.code) {
               case error.PERMISSION_DENIED:
@@ -116,7 +145,7 @@ const MapPage: React.FC<MapPageProps> = ({ noiseLevel, userSensitivity }) => {
     }
   }, []);
 
-  // 2. Search Logic (Nominatim API)
+  // 3. Search Logic (Nominatim API)
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
       if (searchQuery.length > 2) {
@@ -132,12 +161,131 @@ const MapPage: React.FC<MapPageProps> = ({ noiseLevel, userSensitivity }) => {
         setSearchResults([]);
         setIsSearching(false);
       }
-    }, 1000); // 1 sec debounce
+    }, 1000); 
 
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery]);
 
-  // 3. Handle Selecting a Place
+  // 4. Simulation of Real-Time Street Noise
+  // In the future, this useEffect will subscribe to Firestore `onSnapshot` for the active route ID
+  useEffect(() => {
+    if (routes.length === 0) return;
+
+    const interval = setInterval(() => {
+      setRoutes(currentRoutes => {
+        return currentRoutes.map(route => {
+          // Simulate traffic noise fluctuation
+          // "Fast" routes fluctuate more (traffic), "Quiet" routes are stable
+          const volatility = route.type === 'fast' ? 5 : 1; 
+          const change = Math.floor(Math.random() * (volatility * 2 + 1)) - volatility;
+          let newNoise = route.avgNoise + change;
+          
+          // Clamp values
+          if (newNoise < 30) newNoise = 30;
+          if (newNoise > 90) newNoise = 90;
+
+          return { ...route, avgNoise: newNoise };
+        });
+      });
+    }, 3000); // Update every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [routes.length]);
+
+  // 5. Update Map Polylines when routes or selection changes
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+
+    // Clear old layers
+    routeLayersRef.current.forEach(layer => mapInstanceRef.current?.removeLayer(layer));
+    routeLayersRef.current = [];
+
+    routes.forEach(route => {
+      const isSelected = route.id === selectedRouteId;
+      const opacity = isSelected ? 1 : 0.4;
+      const weight = isSelected ? 6 : 4;
+      const color = route.type === 'quiet' ? '#10b981' : '#f59e0b'; // Green vs Amber/Orange
+      
+      // If the route is dangerously loud, turn it red
+      const displayColor = route.avgNoise > userSensitivity ? '#ef4444' : color;
+
+      const polyline = L.polyline(route.coordinates, {
+        color: displayColor,
+        weight: weight,
+        opacity: opacity,
+        dashArray: isSelected ? undefined : '5, 10'
+      }).addTo(mapInstanceRef.current!);
+
+      routeLayersRef.current.push(polyline);
+    });
+
+    // Fit bounds to selected route
+    if (selectedRouteId) {
+        const selected = routes.find(r => r.id === selectedRouteId);
+        if (selected && mapInstanceRef.current) {
+            mapInstanceRef.current.fitBounds(L.polyline(selected.coordinates).getBounds(), { padding: [50, 50] });
+        }
+    }
+
+  }, [routes, selectedRouteId, userSensitivity]);
+
+
+  // Helper: Mock Route Generation
+  // Generates coordinate arrays to simulate streets
+  const generateMockRoutes = (start: [number, number], end: [number, number], name: string) => {
+    // Route 1: Direct (Fast but Noisy)
+    const fastCoords: [number, number][] = [start, end]; // Straight line for simplicity in mock
+    
+    // Route 2: Detour (Quiet)
+    // Create a midpoint that is offset to simulate going through side streets
+    const midLat = (start[0] + end[0]) / 2;
+    const midLng = (start[1] + end[1]) / 2;
+    const offset = 0.005; // rough deviation
+    const quietCoords: [number, number][] = [
+        start,
+        [midLat + offset, midLng - offset], // Waypoint
+        end
+    ];
+
+    const distKm = getDistance(start[0], start[1], end[0], end[1]);
+
+    const fastRoute: RouteOption = {
+        id: 'fast_1',
+        name: 'Main St',
+        type: 'fast',
+        distance: `${distKm.toFixed(1)} km`,
+        duration: `${(distKm * 3).toFixed(0)} min`, // roughly 20km/h
+        avgNoise: 75, // Loud baseline
+        coordinates: fastCoords,
+        color: '#f59e0b'
+    };
+
+    const quietRoute: RouteOption = {
+        id: 'quiet_1',
+        name: 'Park Ave (Quiet)',
+        type: 'quiet',
+        distance: `${(distKm * 1.2).toFixed(1)} km`, // 20% longer
+        duration: `${(distKm * 4.5).toFixed(0)} min`, // slower
+        avgNoise: 45, // Quiet baseline
+        coordinates: quietCoords,
+        color: '#10b981'
+    };
+
+    setRoutes([quietRoute, fastRoute]); // Default to quiet first
+    setSelectedRouteId(quietRoute.id);
+  };
+
+  const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+              Math.sin(dLon/2) * Math.sin(dLon/2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    return R * c;
+  };
+
   const handleSelectPlace = (place: SearchResult) => {
     if (!mapInstanceRef.current || !userPos) {
         alert("Waiting for your location... (Ensure permissions are enabled)");
@@ -148,43 +296,19 @@ const MapPage: React.FC<MapPageProps> = ({ noiseLevel, userSensitivity }) => {
     const lon = parseFloat(place.lon);
     const destLatLng: [number, number] = [lat, lon];
 
-    // Remove old stuff
+    setDestinationName(place.display_name.split(',')[0]);
+
+    // Remove destination marker if exists
     if (destMarkerRef.current) mapInstanceRef.current.removeLayer(destMarkerRef.current);
-    if (routeLineRef.current) mapInstanceRef.current.removeLayer(routeLineRef.current);
 
     // Add Destination Marker
     destMarkerRef.current = L.marker(destLatLng).addTo(mapInstanceRef.current)
       .bindPopup(place.display_name.split(',')[0])
       .openPopup();
 
-    // Draw Line (Simple direct route)
-    // In a full app, this would use a routing API (like OSRM)
-    const latlngs = [
-        userPos,
-        destLatLng
-    ];
-    
-    routeLineRef.current = L.polyline(latlngs, {color: '#10b981', weight: 5, opacity: 0.7}).addTo(mapInstanceRef.current);
+    // Generate Routes
+    generateMockRoutes(userPos, destLatLng, place.display_name.split(',')[0]);
 
-    // Zoom to fit bounds
-    mapInstanceRef.current.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50] });
-
-    // Calculate simulated distance (Haversine roughly)
-    const R = 6371; // km
-    const dLat = (lat - userPos[0]) * Math.PI / 180;
-    const dLon = (lon - userPos[1]) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(userPos[0] * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * 
-              Math.sin(dLon/2) * Math.sin(dLon/2); 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-    const d = R * c; // Distance in km
-
-    setDestinationInfo({
-        name: place.display_name.split(',')[0],
-        dist: d < 1 ? `${(d * 1000).toFixed(0)} m` : `${d.toFixed(1)} km`
-    });
-
-    setRouteActive(true);
     setSearchQuery('');
     setSearchResults([]);
     setIsSearching(false);
@@ -195,6 +319,33 @@ const MapPage: React.FC<MapPageProps> = ({ noiseLevel, userSensitivity }) => {
       mapInstanceRef.current.setView(userPos, 16, { animate: true });
     } else {
         alert("Location not found yet.");
+    }
+  };
+
+  const handleResetMap = () => {
+    // Clear State
+    setRoutes([]);
+    setSelectedRouteId(null);
+    setDestinationName('');
+    setSearchQuery('');
+    setSearchResults([]);
+
+    // Clear Map Layers
+    if (destMarkerRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(destMarkerRef.current);
+        destMarkerRef.current = null;
+    }
+
+    // Polylines are handled by the useEffect dependent on `routes`, 
+    // but we can ensure they are cleared here too for safety.
+    if (mapInstanceRef.current) {
+        routeLayersRef.current.forEach(layer => mapInstanceRef.current?.removeLayer(layer));
+        routeLayersRef.current = [];
+        
+        // Return view to user if possible
+        if (userPos) {
+            mapInstanceRef.current.setView(userPos, 14, { animate: true });
+        }
     }
   };
 
@@ -254,31 +405,79 @@ const MapPage: React.FC<MapPageProps> = ({ noiseLevel, userSensitivity }) => {
       {/* Map Container */}
       <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-      {/* Route Card */}
-      {routeActive && destinationInfo && (
-          <div className="absolute bottom-24 md:bottom-8 left-4 right-4 md:left-auto md:right-4 md:w-80 bg-[var(--bg-card)] p-4 rounded-2xl shadow-xl z-[400] border border-[var(--primary)]/20 animate-slide-up">
-            <div className="flex items-center gap-4 mb-3">
-                <div className="flex-1">
-                    <h3 className="font-bold text-[var(--text-main)] text-lg">To: {destinationInfo.name}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                    <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold rounded">DIRECT</span>
-                    <span className="text-sm text-[var(--text-sub)]">{destinationInfo.dist} (Straight line)</span>
-                    </div>
-                </div>
-                <div className="text-right">
-                    <button 
-                        onClick={() => setRouteActive(false)}
-                        className="block px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-bold shadow-md hover:bg-[var(--primary-hover)]"
-                    >
-                        End
-                    </button>
-                </div>
+      {/* Route Selection Card */}
+      {routes.length > 0 && (
+          <div className="absolute bottom-24 md:bottom-8 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-[var(--bg-card)] p-4 rounded-2xl shadow-xl z-[400] border border-[var(--primary)]/20 animate-slide-up flex flex-col gap-3">
+            <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                <h3 className="font-bold text-[var(--text-main)] text-lg">To: {destinationName}</h3>
+                <button 
+                    onClick={handleResetMap}
+                    className="text-xs text-red-500 hover:underline"
+                >
+                    Cancel
+                </button>
+            </div>
+            
+            <p className="text-xs text-[var(--text-sub)]">Select a route. Noise levels update live.</p>
+
+            <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+                {routes.map(route => {
+                    const isSelected = route.id === selectedRouteId;
+                    const isTooLoud = route.avgNoise > userSensitivity;
+                    
+                    return (
+                        <button
+                            key={route.id}
+                            onClick={() => setSelectedRouteId(route.id)}
+                            className={`
+                                relative flex items-center justify-between p-3 rounded-xl border-2 transition-all
+                                ${isSelected ? 'border-[var(--primary)] bg-[var(--bg-input)]' : 'border-transparent hover:bg-gray-50'}
+                            `}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-full ${route.type === 'quiet' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                                    {route.type === 'quiet' ? '🌿' : '⚡'}
+                                </div>
+                                <div className="text-left">
+                                    <p className="font-bold text-sm text-[var(--text-main)]">{route.name}</p>
+                                    <p className="text-xs text-[var(--text-sub)]">{route.duration} • {route.distance}</p>
+                                </div>
+                            </div>
+                            
+                            <div className="flex flex-col items-end">
+                                <span className={`text-lg font-bold ${isTooLoud ? 'text-red-500 animate-pulse' : 'text-[var(--text-main)]'}`}>
+                                    {route.avgNoise} dB
+                                </span>
+                                {isTooLoud && <span className="text-[10px] text-red-500 font-bold">LOUD</span>}
+                            </div>
+                        </button>
+                    );
+                })}
+            </div>
+
+            <div className="pt-2">
+                 <button className="w-full py-3 bg-[var(--primary)] text-white rounded-xl font-bold hover:opacity-90 transition-opacity shadow-lg">
+                    Start Navigation
+                 </button>
             </div>
           </div>
       )}
 
       {/* Map Controls */}
-      <div className="absolute right-4 bottom-32 md:bottom-48 z-[400] flex flex-col gap-3">
+      <div className="absolute right-4 bottom-32 md:bottom-[28rem] z-[400] flex flex-col gap-3">
+        {/* Reset Map Button - Only visible when route is active */}
+        {(routes.length > 0 || destinationName) && (
+            <button 
+                onClick={handleResetMap}
+                className="p-3 bg-white rounded-full shadow-lg text-gray-600 hover:text-red-600 transition-colors animate-fade-in"
+                title="Reset Map / Clear Route"
+            >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        )}
+
         <button 
             onClick={handleRecenter}
             className="p-3 bg-white rounded-full shadow-lg text-gray-600 hover:text-emerald-600 transition-colors"
@@ -288,10 +487,24 @@ const MapPage: React.FC<MapPageProps> = ({ noiseLevel, userSensitivity }) => {
         </button>
       </div>
 
-      {/* Live Noise Indicator on Map */}
+      {/* Live Noise Indicator on Map - Gated by Permission */}
       <div className="absolute top-24 right-4 z-[400] bg-white/90 backdrop-blur px-3 py-1 rounded-full shadow-sm border border-gray-200 text-xs font-bold flex items-center gap-2">
-         <div className={`w-2 h-2 rounded-full ${noiseLevel > userSensitivity ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
-         <span>Live: {noiseLevel} dB</span>
+         {micStatus === 'granted' ? (
+             <>
+                <div className={`w-2 h-2 rounded-full ${noiseLevel > userSensitivity ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
+                <span>Mic: {noiseLevel} dB</span>
+             </>
+         ) : micStatus === 'denied' ? (
+             <>
+                <div className="w-2 h-2 rounded-full bg-gray-400"></div>
+                <span className="text-gray-500">Mic Disabled</span>
+             </>
+         ) : (
+             <>
+                <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></div>
+                <span className="text-gray-500">Connecting...</span>
+             </>
+         )}
       </div>
     </div>
   );
